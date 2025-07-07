@@ -43,15 +43,42 @@ python eye_gaze.py
 
 ### Option 2: Docker
 
-1. Build and run with Docker Compose:
+#### Automatic Build (Recommended)
+Use the build script that tries different configurations:
+
+**Linux/macOS:**
 ```bash
-docker-compose up --build
+./build.sh
 ```
 
-2. Or build and run manually:
+**Windows (PowerShell):**
+```powershell
+bash build.sh
+```
+
+#### Manual Build Options
+
+1. **Simple Build (Recommended for most cases):**
 ```bash
-docker build -t eye-tracking-backend .
+docker build -f Dockerfile.simple -t eye-tracking-backend .
 docker run -p 5000:5000 eye-tracking-backend
+```
+
+2. **Minimal Build (if simple fails):**
+```bash
+docker build -f Dockerfile.minimal -t eye-tracking-backend .
+docker run -p 5000:5000 eye-tracking-backend
+```
+
+3. **Full Build (if others fail):**
+```bash
+docker build -f Dockerfile -t eye-tracking-backend .
+docker run -p 5000:5000 eye-tracking-backend
+```
+
+4. **Docker Compose:**
+```bash
+docker-compose up --build
 ```
 
 ## Cloud Deployment
@@ -178,6 +205,39 @@ The Haar cascade files are included with OpenCV. If they're not found, check tha
 1. Check that the backend is running on the correct host and port
 2. Ensure your frontend is connecting to the correct WebSocket URL
 3. Check for firewall or network restrictions
+
+### Docker Build Issues
+
+If you encounter package installation errors during Docker build:
+
+1. **Try the simple Dockerfile first:**
+   ```bash
+   docker build -f Dockerfile.simple -t eye-tracking-backend .
+   ```
+
+2. **Clean Docker cache:**
+   ```bash
+   docker system prune -a
+   ```
+
+3. **Check Docker version:**
+   ```bash
+   docker --version
+   ```
+
+4. **Use the build script:**
+   ```bash
+   # Linux/macOS
+   ./build.sh
+   
+   # Windows
+   bash build.sh
+   ```
+
+5. **Alternative: Use Docker Compose with simple Dockerfile:**
+   ```bash
+   docker-compose up --build
+   ```
 
 ## Health Check
 
