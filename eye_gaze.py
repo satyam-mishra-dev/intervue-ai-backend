@@ -17,8 +17,37 @@ PORT = int(os.getenv('PORT', 5000))
 
 class EyeTracker:
     def __init__(self):
-        self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-        self.eye_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_eye.xml')
+        try:
+            # Load cascade classifiers with error handling
+            face_cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+            eye_cascade_path = cv2.data.haarcascades + 'haarcascade_eye.xml'
+            
+            if not os.path.exists(face_cascade_path):
+                logger.error(f"❌ Face cascade file not found: {face_cascade_path}")
+                raise FileNotFoundError(f"Face cascade file not found: {face_cascade_path}")
+                
+            if not os.path.exists(eye_cascade_path):
+                logger.error(f"❌ Eye cascade file not found: {eye_cascade_path}")
+                raise FileNotFoundError(f"Eye cascade file not found: {eye_cascade_path}")
+            
+            self.face_cascade = cv2.CascadeClassifier(face_cascade_path)
+            self.eye_cascade = cv2.CascadeClassifier(eye_cascade_path)
+            
+            # Check if cascade classifiers loaded successfully
+            if self.face_cascade.empty():
+                logger.error("❌ Failed to load face cascade classifier")
+                raise RuntimeError("Failed to load face cascade classifier")
+                
+            if self.eye_cascade.empty():
+                logger.error("❌ Failed to load eye cascade classifier")
+                raise RuntimeError("Failed to load eye cascade classifier")
+                
+            logger.info("✅ Cascade classifiers loaded successfully")
+            
+        except Exception as e:
+            logger.error(f"❌ Error initializing cascade classifiers: {e}")
+            raise
+            
         self.connected_clients = set()
         self.is_running = False
         
@@ -94,13 +123,29 @@ class EyeTracker:
         """Start eye tracking and send results via WebSocket"""
         self.is_running = True
         
-        # Initialize camera
-        cap = cv2.VideoCapture(0)
-        if not cap.isOpened():
-            logger.error("❌ Could not open camera")
+        # Initialize camera with multiple fallback options
+        cap = None
+        camera_index = 0
+        
+        # Try different camera indices
+        for i in range(3):  # Try indices 0, 1, 2
+            try:
+                cap = cv2.VideoCapture(i)
+                if cap.isOpened():
+                    logger.info(f"📹 Camera initialized successfully on index {i}")
+                    break
+                else:
+                    cap.release()
+            except Exception as e:
+                logger.warning(f"❌ Failed to open camera on index {i}: {e}")
+                if cap:
+                    cap.release()
+        
+        if not cap or not cap.isOpened():
+            logger.error("❌ Could not open camera on any index")
             await websocket.send(json.dumps({
                 "type": "error",
-                "message": "Could not open camera",
+                "message": "Could not open camera - no camera available",
                 "timestamp": datetime.now().isoformat()
             }))
             return
@@ -117,15 +162,21 @@ class EyeTracker:
                 # Convert to grayscale for detection
                 gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                 
-                # Detect faces
-                faces = self.face_cascade.detectMultiScale(gray, 1.3, 5)
+                # Detect faces with adjusted parameters for better detection
+                faces = self.face_cascade.detectMultiScale(
+                    gray, 
+                    scaleFactor=1.1, 
+                    minNeighbors=5, 
+                    minSize=(30, 30)
+                )
                 
                 eye_data = {
                     "type": "eye_data",
                     "timestamp": datetime.now().isoformat(),
                     "face_detected": len(faces) > 0,
                     "eye_count": 0,
-                    "looking_away": False
+                    "looking_away": False,
+                    "confidence": 0.0
                 }
                 
                 for (x, y, w, h) in faces:
@@ -133,12 +184,21 @@ class EyeTracker:
                     roi_color = frame[y:y+h, x:x+w]
                     
                     # Detect eyes within the face region
-                    eyes = self.eye_cascade.detectMultiScale(roi_gray)
+                    eyes = self.eye_cascade.detectMultiScale(
+                        roi_gray,
+                        scaleFactor=1.1,
+                        minNeighbors=5,
+                        minSize=(20, 20)
+                    )
                     eye_data["eye_count"] = len(eyes)
                     
-                    # Draw rectangles around detected eyes
-                    for (ex, ey, ew, eh) in eyes:
-                        cv2.rectangle(roi_color, (ex, ey), (ex+ew, ey+eh), (0, 255, 0), 2)
+                    # Calculate confidence based on face and eye detection
+                    if len(faces) > 0 and len(eyes) >= 2:
+                        eye_data["confidence"] = min(1.0, len(eyes) / 2.0)
+                    elif len(faces) > 0:
+                        eye_data["confidence"] = 0.5
+                    else:
+                        eye_data["confidence"] = 0.0
                 
                 # Determine if user is looking away
                 if len(faces) == 0 or eye_data["eye_count"] < 2:
@@ -160,7 +220,8 @@ class EyeTracker:
         except Exception as e:
             logger.error(f"❌ Eye tracking error: {e}")
         finally:
-            cap.release()
+            if cap:
+                cap.release()
             logger.info("📹 Camera released")
 
 async def main():

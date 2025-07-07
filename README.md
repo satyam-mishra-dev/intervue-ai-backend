@@ -1,149 +1,201 @@
 # Eye Tracking Backend
 
-This directory contains the Python backend for eye tracking functionality in the Prepwise interview platform.
+This is the Python backend for the Intervue AI platform that provides real-time eye tracking via WebSocket connections.
 
 ## Features
 
 - Real-time eye tracking using OpenCV
-- WebSocket communication with frontend
-- Cheating detection (looking away from screen)
-- Live video feed streaming
-- Automatic logging of cheating attempts
+- WebSocket server for live communication
+- Face and eye detection using Haar cascades
+- Cloud-ready deployment with Docker
+- Headless OpenCV support for server environments
 
-## Setup
+## Prerequisites
 
-### Prerequisites
+- Python 3.11+
+- Docker (for containerized deployment)
+- Camera access (for local development)
 
-- Python 3.8 or higher
-- Webcam access
-- pip (Python package installer)
+## Local Development
 
-### Installation
+### Option 1: Direct Python
 
-1. **Navigate to the backend directory:**
-   ```bash
-   cd backend
-   ```
+1. Create a virtual environment:
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
 
-2. **Run the setup script:**
-   ```bash
-   python setup.py
-   ```
-   
-   This will:
-   - Check Python version
-   - Install required dependencies
-   - Test imports
-   - Verify webcam access
+2. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
 
-3. **Manual installation (if setup script fails):**
-   ```bash
-   pip install -r requirements.txt
-   ```
+3. Run the health check:
+```bash
+python health_check.py
+```
 
-### Running the Backend
-
-#### Option 1: Automatic (Recommended)
-The backend will start automatically when you begin an interview in the frontend.
-
-#### Option 2: Manual
+4. Start the server:
 ```bash
 python eye_gaze.py
 ```
 
-The backend will start on `http://localhost:5000`
+### Option 2: Docker
 
-## API Endpoints
+1. Build and run with Docker Compose:
+```bash
+docker-compose up --build
+```
 
-- `GET /api/health` - Check if the backend is running
-- `POST /api/stop-python` - Stop the eye tracking service
+2. Or build and run manually:
+```bash
+docker build -t eye-tracking-backend .
+docker run -p 5000:5000 eye-tracking-backend
+```
 
-## WebSocket Events
+## Cloud Deployment
 
-- `video_frame` - Streams base64 encoded video frames
-- `alert` - Sends cheating detection alerts
+### Railway
+
+1. Connect your repository to Railway
+2. Set the following environment variables:
+   - `HOST`: `0.0.0.0`
+   - `PORT`: `5000`
+3. Deploy the backend directory
+
+### Render
+
+1. Create a new Web Service on Render
+2. Connect your repository
+3. Set build command: `pip install -r requirements.txt`
+4. Set start command: `python eye_gaze.py`
+5. Set environment variables:
+   - `HOST`: `0.0.0.0`
+   - `PORT`: `10000` (Render's default port)
+
+### Heroku
+
+1. Create a `Procfile`:
+```
+web: python eye_gaze.py
+```
+
+2. Deploy using Heroku CLI or GitHub integration
+
+## Environment Variables
+
+- `HOST`: Server host (default: `localhost`)
+- `PORT`: Server port (default: `5000`)
+
+## WebSocket API
+
+### Connection
+- URL: `ws://your-backend-url:port`
+- Protocol: WebSocket
+
+### Messages
+
+#### From Client to Server
+
+**Start Tracking**
+```json
+{
+  "type": "start_tracking"
+}
+```
+
+**Stop Tracking**
+```json
+{
+  "type": "stop_tracking"
+}
+```
+
+**Ping**
+```json
+{
+  "type": "ping"
+}
+```
+
+#### From Server to Client
+
+**Connection Confirmation**
+```json
+{
+  "type": "connection",
+  "message": "Eye tracking connected",
+  "timestamp": "2024-01-01T12:00:00.000Z"
+}
+```
+
+**Eye Tracking Data**
+```json
+{
+  "type": "eye_data",
+  "timestamp": "2024-01-01T12:00:00.000Z",
+  "face_detected": true,
+  "eye_count": 2,
+  "looking_away": false,
+  "confidence": 1.0
+}
+```
+
+**Error**
+```json
+{
+  "type": "error",
+  "message": "Error description",
+  "timestamp": "2024-01-01T12:00:00.000Z"
+}
+```
+
+**Pong Response**
+```json
+{
+  "type": "pong",
+  "timestamp": "2024-01-01T12:00:00.000Z"
+}
+```
 
 ## Troubleshooting
 
-### Common Issues
+### OpenCV Import Error
 
-1. **"Could not open webcam"**
-   - Ensure your webcam is not being used by another application
-   - Check webcam permissions in your OS
-   - Try running `python setup.py` to verify webcam access
+If you see `libGL.so.1: cannot open shared object file`, this means you're using the full OpenCV package instead of the headless version. The `requirements.txt` should use `opencv-python-headless`.
 
-2. **"Failed to load cascade classifiers"**
-   - This is usually a temporary issue
-   - Restart the backend
-   - Ensure OpenCV is properly installed
+### Camera Not Found
 
-3. **Connection refused errors**
-   - Make sure no other application is using port 5000
-   - Check if the backend is already running
-   - Restart the backend
+The backend tries multiple camera indices (0, 1, 2). If no camera is found, it will send an error message to the client.
 
-4. **Import errors**
-   - Run `pip install -r requirements.txt`
-   - Ensure you're using Python 3.8+
-   - Check if you're in the correct virtual environment
+### Cascade Files Not Found
 
-### Windows Specific
+The Haar cascade files are included with OpenCV. If they're not found, check that OpenCV is properly installed.
 
-- Use `python` instead of `python3`
-- Ensure Python is in your PATH
-- Run PowerShell as Administrator if you encounter permission issues
+### WebSocket Connection Issues
 
-### macOS Specific
+1. Check that the backend is running on the correct host and port
+2. Ensure your frontend is connecting to the correct WebSocket URL
+3. Check for firewall or network restrictions
 
-- You may need to grant camera permissions to Terminal/VS Code
-- Use `python3` command
-- Install Xcode command line tools if needed
+## Health Check
 
-### Linux Specific
+Run the health check script to verify everything is working:
 
-- Install system dependencies: `sudo apt-get install python3-opencv`
-- Ensure webcam permissions: `sudo usermod -a -G video $USER`
+```bash
+python health_check.py
+```
 
-## Configuration
+This will check:
+- All Python dependencies
+- OpenCV installation and cascade files
+- Environment variables
+- Cascade classifier loading
 
-The eye tracking sensitivity can be adjusted in `eye_gaze.py`:
+## Development Notes
 
-- `frame_counter > 15` - Number of frames before triggering alert
-- `scaleFactor=1.1` - Face detection sensitivity
-- `minNeighbors=5` - Face detection accuracy
-
-## Logs
-
-Cheating attempts are logged to `cheating_log.txt` in the project root.
-
-## Security Notes
-
-- The backend runs on localhost only
-- No sensitive data is transmitted
-- Video frames are base64 encoded and sent over WebSocket
-- All processing happens locally
-
-## Performance
-
-- Video resolution: 250x125 pixels (optimized for performance)
-- Frame rate: ~10 FPS
-- Memory usage: ~50-100MB
-- CPU usage: Moderate (depends on hardware)
-
-## Development
-
-To modify the eye tracking algorithm:
-
-1. Edit the `process_eye_region` method in `eye_gaze.py`
-2. Adjust detection parameters
-3. Test with different lighting conditions
-4. Monitor the cheating log for false positives
-
-## Support
-
-If you encounter issues:
-
-1. Check the console output for error messages
-2. Verify your Python environment
-3. Test webcam access independently
-4. Check the troubleshooting section above 
+- The backend uses `opencv-python-headless` for cloud compatibility
+- Camera access is required for eye tracking functionality
+- WebSocket connections are maintained with ping/pong heartbeats
+- Error handling is implemented throughout the application 
