@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: eye-tracking-service
+    env: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: python eye_gaze.py
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: 5000
+      - key: PYTHON_VERSION
+        value: 3.11.7 
